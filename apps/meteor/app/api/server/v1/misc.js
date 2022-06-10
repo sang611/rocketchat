@@ -9,12 +9,14 @@ import { escapeHTML } from '@rocket.chat/string-helpers';
 
 import { hasPermission } from '../../../authorization/server';
 import { Users } from '../../../models/server';
+import { Integrations } from '../../../models/server/raw';
 import { settings } from '../../../settings/server';
 import { API } from '../api';
 import { getDefaultUserFields } from '../../../utils/server/functions/getDefaultUserFields';
 import { getURL } from '../../../utils/lib/getURL';
 import { getLogs } from '../../../../server/stream/stdout';
 import { SystemLogger } from '../../../../server/lib/logger/system';
+// import { api, channel, credentials, request } from '/tests/data/api-data';
 
 /**
  * @openapi
@@ -271,29 +273,29 @@ API.v1.addRoute(
 			return {
 				headers: { 'Content-Type': 'image/svg+xml;charset=utf-8' },
 				body: `
-				<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}">
-					<linearGradient id="b" x2="0" y2="100%">
-						<stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
-						<stop offset="1" stop-opacity=".1"/>
+				<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='${width}' height='${height}'>
+					<linearGradient id='b' x2='0' y2='100%'>
+						<stop offset='0' stop-color='#bbb' stop-opacity='.1'/>
+						<stop offset='1' stop-opacity='.1'/>
 					</linearGradient>
-					<mask id="a">
-						<rect width="${width}" height="${height}" rx="3" fill="#fff"/>
+					<mask id='a'>
+						<rect width='${width}' height='${height}' rx='3' fill='#fff'/>
 					</mask>
-					<g mask="url(#a)">
-						<path fill="#555" d="M0 0h${leftSize}v${height}H0z"/>
-						<path fill="${backgroundColor}" d="M${leftSize} 0h${rightSize}v${height}H${leftSize}z"/>
-						<path fill="url(#b)" d="M0 0h${width}v${height}H0z"/>
+					<g mask='url(#a)'>
+						<path fill='#555' d='M0 0h${leftSize}v${height}H0z'/>
+						<path fill='${backgroundColor}' d='M${leftSize} 0h${rightSize}v${height}H${leftSize}z'/>
+						<path fill='url(#b)' d='M0 0h${width}v${height}H0z'/>
 					</g>
-						${hideIcon ? '' : `<image x="5" y="3" width="14" height="14" xlink:href="${getURL('/assets/favicon.svg', { full: true })}"/>`}
-					<g fill="#fff" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+						${hideIcon ? '' : `<image x='5' y='3' width='14' height='14' xlink:href='${getURL('/assets/favicon.svg', { full: true })}'/>`}
+					<g fill='#fff' font-family='DejaVu Sans,Verdana,Geneva,sans-serif' font-size='11'>
 						${
-							name
-								? `<text x="${iconSize}" y="15" fill="#010101" fill-opacity=".3">${name}</text>
-						<text x="${iconSize}" y="14">${name}</text>`
-								: ''
-						}
-						<text x="${leftSize + 7}" y="15" fill="#010101" fill-opacity=".3">${text}</text>
-						<text x="${leftSize + 7}" y="14">${text}</text>
+					name
+						? `<text x='${iconSize}' y='15' fill='#010101' fill-opacity='.3'>${name}</text>
+						<text x='${iconSize}' y='14'>${name}</text>`
+						: ''
+				}
+						<text x='${leftSize + 7}' y='15' fill='#010101' fill-opacity='.3'>${text}</text>
+						<text x='${leftSize + 7}' y='14'>${text}</text>
 					</g>
 				</svg>
 			`
@@ -454,6 +456,41 @@ const methodCall = () => ({
 			}
 
 			const result = Meteor.call(method, ...params);
+
+			if (method === 'sendMessage') {
+				const fields = getDefaultUserFields();
+				const currentUser = Users.findOneById(this.userId, { fields });
+				if (params[0].msg.substr(0, 1) === '@') {
+					let tag_str = params[0].msg.split(' ')[0];
+					let user_tagged = tag_str.slice(1);
+
+					let userTagged = Users.findOneByIdOrUsername(user_tagged);
+					if(userTagged) {
+						const { roles, _id } = userTagged;
+
+						if (roles && roles.includes('bot')) {
+							console.log("-----------------USER-TAGGED: ", JSON.stringify(userTagged));
+							const botInfo = Promise.await(Integrations.find({users: _id}).toArray());
+							console.log(">>>>>>>>>>>>>>>>", botInfo);
+							const URL_BOT = botInfo[0].urlBot || 'http://10.255.154.88:30012/chat-bot';
+							let first_blank = params[0].msg.indexOf(" ");
+							HTTP.post(
+								URL_BOT,
+								{
+									data: {
+										text: params[0].msg.slice(first_blank),
+										channel: params[0].rid,
+										from_: currentUser.username
+									},
+								},
+							);
+						}
+					}
+				}
+
+
+			}
+
 			return API.v1.success(mountResult({ id, result }));
 		} catch (error) {
 			SystemLogger.error(`Exception while invoking method ${method}`, error.message);
