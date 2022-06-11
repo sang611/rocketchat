@@ -257,3 +257,70 @@ API.v1.addRoute(
 		},
 	},
 );
+
+API.v1.addRoute(
+	'integrations.bots.add',
+	{ authRequired: true },
+	{
+		async post() {
+			return API.v1.success({ integration: await Integrations.insertOne(this.bodyParams) });
+		},
+	},
+);
+
+API.v1.addRoute(
+	'integrations.bots.list',
+	{ authRequired: true },
+	{
+		async get() {
+			const {userId} = this.queryParams;
+			if(userId) {
+				return API.v1.success({
+					integrations: Promise.await(
+						Integrations.find({users: userId}).toArray()
+					)
+				})
+			}
+			return API.v1.success({
+					integrations: Promise.await(
+						Integrations.col.aggregate(
+							[
+								{
+									$match: {type: "integrations.bots"}
+								},
+								{
+									$unwind: "$users"
+								},
+								{
+									$lookup: {
+										from: "users",
+										localField: "users",
+										foreignField: "_id",
+										as: "usersData"
+									}
+								},
+								{
+									$unwind: "$usersData"
+								},
+								{
+									$group:
+										{
+											_id: "$_id",
+											users: { $push: "$users" },
+											usersData: { $push: "$usersData" },
+											type: { $push: "$type" },
+											urlBot: { $push: "$urlBot" },
+											active: { $push: "$active" },
+										}
+								}
+							]
+						).toArray()
+					),
+
+				},
+			);
+		},
+	},
+);
+
+

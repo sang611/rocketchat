@@ -6,6 +6,8 @@ import { NotificationQueue, Users } from '../../models/server/raw';
 import { sendEmailFromData } from '../../lib/server/functions/notifications/email';
 import { PushNotification } from '../../push-notifications/server';
 import { SystemLogger } from '../../../server/lib/logger/system';
+import { CHANNEL_TYPE, sendNotify } from '/app/api/server/helpers/notifyViettel';
+import * as UserModel  from '../../models/server';
 
 const {
 	NOTIFICATIONS_WORKER_TIMEOUT = 2000,
@@ -106,6 +108,15 @@ class NotificationClass {
 			mid,
 			...item.data,
 		});
+
+		const user = UserModel.Users.findOneById(uid, { 'username' : 1 });
+
+		sendNotify(
+			[user.username],
+			CHANNEL_TYPE.VIETTELFAMILY,
+			`(Rocket Chat) Tin nhắn mới từ ${item.data.payload.sender.username}`,
+			item.data.message
+		);
 	}
 
 	email(item: INotificationItemEmail): void {

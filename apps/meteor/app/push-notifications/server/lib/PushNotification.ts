@@ -113,6 +113,7 @@ export class PushNotification {
 		// eslint-disable-next-line @typescript-eslint/camelcase
 		metrics.notificationsSent.inc({ notification_type: 'mobile' });
 		Push.send(config);
+
 	}
 
 	async getNotificationForMessageId({
