@@ -16,7 +16,7 @@ import { getDefaultUserFields } from '../../../utils/server/functions/getDefault
 import { getURL } from '../../../utils/lib/getURL';
 import { getLogs } from '../../../../server/stream/stdout';
 import { SystemLogger } from '../../../../server/lib/logger/system';
-// import { api, channel, credentials, request } from '/tests/data/api-data';
+import { Rooms } from '../../../models/server';
 
 /**
  * @openapi
@@ -460,33 +460,35 @@ const methodCall = () => ({
 			if (method === 'sendMessage') {
 				const fields = getDefaultUserFields();
 				const currentUser = Users.findOneById(this.userId, { fields });
-				if (params[0].msg.substr(0, 1) === '@') {
-					let tag_str = params[0].msg.split(' ')[0];
-					let user_tagged = tag_str.slice(1);
+				const currentRoom = Rooms.findOneById(params[0].rid);
 
-					let userTagged = Users.findOneByIdOrUsername(user_tagged);
-					if(userTagged) {
-						const { roles, _id } = userTagged;
-
-						if (roles && roles.includes('bot')) {
-							console.log("-----------------USER-TAGGED: ", JSON.stringify(userTagged));
-							const botInfo = Promise.await(Integrations.find({users: _id}).toArray());
-							console.log(">>>>>>>>>>>>>>>>", botInfo);
-							const URL_BOT = botInfo[0].urlBot || 'http://10.255.154.88:30012/chat-bot';
-							let first_blank = params[0].msg.indexOf(" ");
-							HTTP.post(
-								URL_BOT,
-								{
-									data: {
-										text: params[0].msg.slice(first_blank),
-										channel: params[0].rid,
-										from_: currentUser.username
-									},
-								},
-							);
+				console.log("-----------------ROOM: ", JSON.stringify(currentRoom));
+				if(currentRoom.t === "d") {
+					let usersInRoomExceptMe = currentRoom.usernames.filter(u => u !== currentUser.username);
+					usersInRoomExceptMe.forEach(u => {
+						let userTagged = Users.findOneByIdOrUsername(u);
+						if(userTagged && userTagged.roles.includes('bot'))
+							callToBot(currentUser, userTagged, params[0].rid, params[0].msg)
+					});
+				}
+				else {
+					if (params[0].msg.substr(0, 1) === '@') {
+						let tag_str = params[0].msg.split(' ')[0];
+						let user_tagged = tag_str.slice(1);
+	
+						let userTagged = Users.findOneByIdOrUsername(user_tagged);
+						if(userTagged) {
+							const { roles } = userTagged;
+	
+							if (roles && roles.includes('bot')) {
+								let first_blank = params[0].msg.indexOf(" ");
+								callToBot(currentUser, userTagged, params[0].rid, params[0].msg.slice(first_blank))
+							}
 						}
 					}
 				}
+
+				
 
 
 			}
@@ -501,6 +503,36 @@ const methodCall = () => ({
 		}
 	},
 });
+
+const callToBot = (currentUser, userTagged, rid, msg) => {
+	const { roles, _id } = userTagged;
+	
+							const botInfo = Promise.await(Integrations.find({users: userTagged._id, active: true, type: 'integrations.bots'}).toArray())[0];
+							
+							const URL_BOT = botInfo.urlBot || 'http://10.255.154.88:30012/chat-bot';
+							const reqCnf = JSON.parse(botInfo.requestCnf);
+							
+							switch(reqCnf.method) {
+								case "POST":
+									const body = {};
+									body[reqCnf.body?.TEXT] = msg;
+									body[reqCnf.body?.CHANNEL] = rid;
+									body[reqCnf.body?.FROM] = currentUser.username;
+									
+									HTTP.post(
+										URL_BOT,
+										{
+											headers: reqCnf.headers ?? {},
+											data: {
+												...body
+											},
+										},
+									);
+
+									break;
+							}
+							
+}
 
 // had to create two different endpoints for authenticated and non-authenticated calls
 // because restivus does not provide 'this.userId' if 'authRequired: false'

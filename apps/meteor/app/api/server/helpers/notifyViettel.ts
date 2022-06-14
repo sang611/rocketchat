@@ -143,7 +143,7 @@ const sendNotifyToUsers = (listUser, channelType: CHANNEL_TYPE, title: String, m
 		}
 	)
 		.then(res => res.json())
-		.then()
+		.then(data => console.log("------------------" + JSON.stringify(data) + "---------------------"))
 		.catch(e => console.log("##########" + e.toString()))
 
 }

@@ -1,6 +1,8 @@
-import { useTranslation } from '@rocket.chat/ui-contexts';
-import React, { useMemo, useState } from 'react';
+import { useTranslation, useSetModal, useToastMessageDispatch, } from '@rocket.chat/ui-contexts';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import GenericTable from '/client/components/GenericTable';
+import ConfirmOwnerChangeWarningModal from '../../../../components/ConfirmOwnerChangeWarningModal';
+import GenericModal from '../../../../components/GenericModal';
 import {
 	Box,
 	Button,
@@ -13,89 +15,42 @@ import {
 	ToggleSwitch,
 	Table,
 	Divider,
+	TextAreaInput
 } from '@rocket.chat/fuselage';
 import VerticalBar from '../../../../components/VerticalBar';
 import Page from '/client/components/Page/Page';
 import { useDebouncedValue } from '@rocket.chat/fuselage-hooks';
 import { useEndpointData } from '/client/hooks/useEndpointData';
-import { useForm } from '/client/hooks/useForm';
+import { useForm } from '../../../../hooks/useForm';
 import { useEndpointAction } from '/client/hooks/useEndpointAction';
 import UserAvatar from '/client/components/avatar/UserAvatar';
 
-function AddBotForm() {
+const AddBotForm = (props) => {
+	const {availableUsers, onReload, closeDraw} = props;
 	const t = useTranslation();
+	
 
-	const sortDir = (sortDir) => (sortDir === 'asc' ? 1 : -1);
-	const useQuery = ({ text, itemsPerPage, current }, sortFields) =>
-		useMemo(
-			() => ({
-				fields: JSON.stringify({
-					name: 1,
-					username: 1,
-					emails: 1,
-					roles: 1,
-					status: 1,
-					avatarETag: 1,
-					active: 1,
-				}),
-				query: JSON.stringify({
-					$or: [
-						{ 'emails.address': { $regex: text || '', $options: 'i' } },
-						{ username: { $regex: text || '', $options: 'i' } },
-						{ name: { $regex: text || '', $options: 'i' } },
-					],
-				}),
-				sort: JSON.stringify(
-					sortFields.reduce((agg, [column, direction]) => {
-						agg[column] = sortDir(direction);
-						return agg;
-					}, {}),
-				),
-				...(itemsPerPage && { count: itemsPerPage }),
-				...(current && { offset: current }),
-			}),
-			[text, itemsPerPage, current, sortFields],
-		);
+	let { values, handlers, reset, hasUnsavedChanges } = useForm({urlBot: "", users: [], active: true, requestCnf: ""})
 
-	const [params, setParams] = useState({ text: '', current: 0, itemsPerPage: 25 });
-	const [sort, setSort] = useState([
-		['name', 'asc'],
-		['usernames', 'asc'],
-	]);
-
-	const debouncedParams = useDebouncedValue(params, 500);
-	const debouncedSort = useDebouncedValue(sort, 500);
-	const query = useQuery(debouncedParams, debouncedSort);
-	const { value: data = {}, reload: reloadList } = useEndpointData('users.list', query);
-	const availableUsers = useMemo(() => data?.users?.map(({
-																													 _id,
-																													 username,
-																													 name,
-																												 }) => [_id, username || name]) ?? [], [data]);
-
-	const { values, handlers, reset, hasUnsavedChanges } = useForm(
-		{
-			users: [],
-			urlBot: '',
-			active: true,
-		},
-	);
-
-	const { users, urlBot, active } = values;
-	const { handleUsers, handleUrlBot, handleActive } = handlers;
+	let {urlBot, users, active, requestCnf} = values;
+	let {handleUrlBot, handleUsers, handleActive, handleRequestCnf} = handlers;
 
 	const saveAction = useEndpointAction('POST', 'integrations.bots.add', {
-		...values,
+		urlBot,
+		users,
+		active,
+		requestCnf,
 		type: 'integrations.bots',
-	}, t('User_created_successfully!'));
+	}, 'User created successfully');
 
 	const handleSave = async () => {
 		await saveAction();
+		onReload();
 	};
 
 	return (
 		<>
-			<VerticalBar.ScrollableContent is='form'>
+			<VerticalBar.ScrollableContent>
 				<FieldGroup>
 					<Field>
 						<Field.Label>Bot host</Field.Label>
@@ -103,17 +58,24 @@ function AddBotForm() {
 							<TextInput flexGrow={1} value={urlBot} onChange={handleUrlBot} />
 						</Field.Row>
 					</Field>
-
+				
 					<Field>
 						<Field.Label>Users</Field.Label>
 						<Field.Row>
 							<MultiSelectFiltered
-								value={users}
 								options={availableUsers}
+								value={users}
 								onChange={handleUsers}
 								placeholder={'Select users'}
 								flexShrink={1}
 							/>
+						</Field.Row>
+					</Field>
+					
+					<Field>
+						<Field.Label>Request config</Field.Label>
+						<Field.Row>
+							<TextAreaInput rows={20} flexGrow={1} value={requestCnf} onChange={handleRequestCnf} />
 						</Field.Row>
 					</Field>
 
@@ -131,7 +93,7 @@ function AddBotForm() {
 						<Field>
 							<Field.Row>
 								<Box display='flex' flexDirection='row' justifyContent='space-between' w='full'>
-									<Button flexGrow={1} mie='x4'>
+									<Button flexGrow={1} mie='x4' onClick={closeDraw}>
 										{t('Cancel')}
 									</Button>
 									<Button flexGrow={1} onClick={handleSave}>
@@ -147,11 +109,14 @@ function AddBotForm() {
 	);
 }
 
-const BotTableRow = ({ urlBot, usersData, active, onClick }) => {
-	console.log({ urlBot, usersData, active });
+
+
+
+const BotTableRow = ({_id, urlBot, users, usersData, active, requestCnf, onClick }) => {
+
 	return (
 		<>
-			<Table.Row tabIndex={0} role='link' action onClick={onClick}>
+			<Table.Row tabIndex={0} role='link' action onClick={() => onClick({_id, urlBot, users, usersData, active, requestCnf})}>
 
 				<Table.Cell>
 					{
@@ -187,20 +152,187 @@ const BotTableRow = ({ urlBot, usersData, active, onClick }) => {
 };
 
 export default function NewBot() {
+	const UpdateBotForm = (props) => {
+		const {bot, availableUsers, onReload, closeDraw} = props;
+		const t = useTranslation();
+		const setModal = useSetModal();
+		const dispatchToastMessage = useToastMessageDispatch();
+	
+		let { values, handlers, reset, hasUnsavedChanges } = useForm(bot);
+	
+		let {urlBot, users, active, requestCnf} = values;
+		let {handleUrlBot, handleUsers, handleActive, handleRequestCnf} = handlers;
+	
+	
+		const updateAction = useEndpointAction('POST', 'integrations.bots.update', {
+			_id: bot?._id,
+			urlBot,
+			users,
+			active,
+			requestCnf
+		}, 'User updated successfully');
+	
+		const deleteAction = useEndpointAction('POST', 'integrations.bots.delete', {
+			_id: bot?._id,
+		}, 'User deleted successfully');
+	
+	
+		const handleUpdate = async () => {
+			await updateAction();
+			onReload();
+		}
+	
+		const handleDelete = async () => {
+			await deleteAction();
+			onReload();
+		}
+	
+		const confirmOwnerChanges =
+			(action, modalProps = {}) =>
+			async () => {
+				try {
+					return await action();
+				} catch (error) {
+					if (error.xhr?.responseJSON?.errorType === 'user-last-owner') {
+						const { shouldChangeOwner, shouldBeRemoved } = error.xhr.responseJSON.details;
+						setModal(
+							<ConfirmOwnerChangeWarningModal
+								shouldChangeOwner={shouldChangeOwner}
+								shouldBeRemoved={shouldBeRemoved}
+								{...modalProps}
+								onConfirm={async () => {
+									await action(true);
+									setModal();
+								}}
+								onCancel={() => {
+									setModal();
+									onChange();
+								}}
+							/>,
+						);
+						return;
+					}
+					dispatchToastMessage({ type: 'error', message: error });
+				}
+			};
+	
+		const deleteUser = confirmOwnerChanges(
+			async (confirm = false) => {
+				if (confirm) {
+					deleteUserQuery.confirmRelinquish = confirm;
+				}
+	
+				const result = handleDelete();
+				if (result.success) {
+					handleDeletedUser();
+					dispatchToastMessage({ type: 'success', message: t('User_has_been_deleted') });
+				} else {
+					setModal();
+				}
+			},
+			{
+				contentTitle: 'Are you sure to delete?',
+				confirmLabel: t('Delete'),
+			},
+		);
+	
+		const confirmDeleteUser = useCallback(() => {
+			setModal(
+				<GenericModal variant='danger' onConfirm={deleteUser} onCancel={() => setModal()} confirmText={t('Delete')}>
+					Are you sure to delete?
+				</GenericModal>,
+			);
+		}, [deleteUser, setModal, t]);
+	
+		
+	
+		return (
+			<>
+				<VerticalBar.ScrollableContent>
+					<FieldGroup>
+						<Field>
+							<Field.Label>Bot host</Field.Label>
+							<Field.Row>
+								<TextInput flexGrow={1} value={urlBot} onChange={handleUrlBot} />
+							</Field.Row>
+						</Field>
+					
+						<Field>
+							<Field.Label>Users</Field.Label>
+							<Field.Row>
+								<MultiSelectFiltered
+									options={availableUsers}
+									value={users}
+									onChange={handleUsers}
+									placeholder={'Select users'}
+									flexShrink={1}
+								/>
+							</Field.Row>
+						</Field>
+
+						<Field>
+						<Field.Label>Request config</Field.Label>
+						<Field.Row>
+							<TextAreaInput rows={20} flexGrow={1} value={requestCnf} onChange={handleRequestCnf} />
+						</Field.Row>
+					</Field>
+	
+						<Field>
+							<Field.Row>
+								<Box flexGrow={1} display='flex' flexDirection='row' alignItems='center' justifyContent='space-between'>
+									<Box>Active</Box>
+									<ToggleSwitch
+										checked={active}
+										onChange={handleActive}
+									/>
+								</Box>
+							</Field.Row>
+							<br />
+							<Field>
+								<Field.Row>
+									<Box display='flex' flexDirection='row' justifyContent='space-between' w='full'>
+									
+											<Button flexGrow={1} mie='x4' onClick={confirmDeleteUser}>
+												{t('Delete')}
+											</Button>
+											
+										<Button flexGrow={1} mie='x4' onClick={closeDraw}>
+											{t('Cancel')}
+										</Button>
+										<Button flexGrow={1} onClick={handleUpdate}>
+											{t('Save')}
+										</Button>
+									</Box>
+								</Field.Row>
+							</Field>
+						</Field>
+					</FieldGroup>
+				</VerticalBar.ScrollableContent>
+			</>
+		);
+	}
 	const t = useTranslation();
 
 	const [displayDraw, setDisplayDraw] = useState(false);
-
-	const onHeaderClick = () => {
-		console.log('Hello');
-	};
+	const [selectedInteg, setSelectedInteg] = useState(null);
 
 	const handleNewButtonClick = () => {
+		setSelectedInteg(null);
 		setDisplayDraw(true);
 	};
 
-	const { value: data } = useEndpointData('integrations.bots.list');
-	console.log(data);
+	const openDraw = () => {
+		setDisplayDraw(true);
+	}
+
+	const closeDraw = () => {
+		setDisplayDraw(false);
+		setSelectedInteg(null);
+	}
+
+	const { value: userList = {} } = useEndpointData('users.list');
+	const availableUsers = useMemo(() => userList?.users?.map(({_id, username, name}) => [_id, username || name]) ?? [], [userList]);
+	const { value: botList, reload: reloadList } = useEndpointData('integrations.bots.list');
 
 	return (
 		<>
@@ -221,7 +353,7 @@ export default function NewBot() {
 							<>
 								<GenericTable.HeaderCell
 									key={'users'}
-									onClick={onHeaderClick}
+									
 									w='x140'
 								>
 									Users
@@ -229,7 +361,7 @@ export default function NewBot() {
 
 								<GenericTable.HeaderCell
 									key={'urlBot'}
-									onClick={onHeaderClick}
+									
 									w='x200'
 								>
 									Host
@@ -237,7 +369,7 @@ export default function NewBot() {
 
 								<GenericTable.HeaderCell
 									key={'active'}
-									onClick={onHeaderClick}
+									
 									w='x50'
 								>
 									Active
@@ -245,14 +377,20 @@ export default function NewBot() {
 
 							</>
 						}
-						results={data?.integrations}
+						results={botList?.integrations}
 					>
 						{
-							(i) =>
-								<BotTableRow
-									{...i}
-									onClick={() => setDisplayDraw(true)}
-								/>
+							 (i) =>
+							<BotTableRow
+							    key={i._id}
+								{...i}
+								onClick={(itg) => {
+									setSelectedInteg(itg);
+									openDraw();
+								}}
+
+							/>
+							
 						}
 					</GenericTable>
 
@@ -262,11 +400,17 @@ export default function NewBot() {
 					displayDraw ? (
 						<VerticalBar>
 							<VerticalBar.Header>
-								Add Bot
-								<VerticalBar.Close onClick={() => setDisplayDraw(false)} />
+								{
+									selectedInteg ? "Update user" : "Add Bot"
+								}
+								
+								<VerticalBar.Close onClick={closeDraw} />
 							</VerticalBar.Header>
-
-							<AddBotForm />
+								{
+									selectedInteg ? <UpdateBotForm bot={selectedInteg} availableUsers={availableUsers} onReload={reloadList} closeDraw={closeDraw} />
+												  : <AddBotForm availableUsers={availableUsers} onReload={reloadList} closeDraw={closeDraw}/>
+								}
+							
 						</VerticalBar>
 					) : ''
 				}

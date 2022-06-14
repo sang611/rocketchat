@@ -154,7 +154,7 @@ export const useForm = <
 	reset: () => void;
 } => {
 	const [state, dispatch] = useReducer(reduceForm, initialValues, initForm);
-
+	console.log("use form")
 	const commit = useCallback(() => {
 		dispatch(formCommitted());
 	}, []);

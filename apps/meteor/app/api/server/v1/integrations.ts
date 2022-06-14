@@ -263,7 +263,69 @@ API.v1.addRoute(
 	{ authRequired: true },
 	{
 		async post() {
+			const {users, _id} = this.bodyParams;
+			let conf = false;
+			await Promise.all(
+				users.map(async (u: String) => {
+				
+					const inte_ = Promise.await(
+						Integrations.find({users: u}).toArray()
+					)
+					
+					if(inte_.length > 0) {
+						conf = true;
+					}
+				})
+			) 
+			
+			if(conf) {
+				return API.v1.failure("User is existed in other config")
+			}
 			return API.v1.success({ integration: await Integrations.insertOne(this.bodyParams) });
+		},
+	},
+);
+
+API.v1.addRoute(
+	'integrations.bots.update',
+	{ authRequired: true },
+	{
+		async post() {
+			const {_id, users, urlBot, active, requestCnf} = this.bodyParams;
+			let conf = false;
+
+			await Promise.all(
+				users.map(async (u: String) => {
+				
+					const inte_ = Promise.await(
+						Integrations.find({users: u, _id: {$ne: _id}}).toArray()
+					)
+					
+					if(inte_.length > 0) {
+						conf = true;
+					}
+				})
+			) 
+			
+			if(conf) {
+				return API.v1.failure("User is existed in other config")
+			}
+			
+			await Integrations.updateOne({_id}, {$set: {users, urlBot, active, requestCnf}})
+			return API.v1.success({ bot: await Integrations.findOne({_id})});
+		},
+	},
+);
+
+API.v1.addRoute(
+	'integrations.bots.delete',
+	{ authRequired: true },
+	{
+		async post() {
+			const {_id} = this.bodyParams;
+			console.log(JSON.stringify(this.bodyParams))
+			await Integrations.deleteOne({_id})
+			return API.v1.success();
 		},
 	},
 );
@@ -273,11 +335,11 @@ API.v1.addRoute(
 	{ authRequired: true },
 	{
 		async get() {
-			const {userId} = this.queryParams;
+			const {userId, _id} = this.queryParams;
 			if(userId) {
 				return API.v1.success({
 					integrations: Promise.await(
-						Integrations.find({users: userId}).toArray()
+						Integrations.find({users: userId, _id: _id}).toArray()
 					)
 				})
 			}
@@ -288,9 +350,7 @@ API.v1.addRoute(
 								{
 									$match: {type: "integrations.bots"}
 								},
-								{
-									$unwind: "$users"
-								},
+							
 								{
 									$lookup: {
 										from: "users",
@@ -299,20 +359,18 @@ API.v1.addRoute(
 										as: "usersData"
 									}
 								},
-								{
-									$unwind: "$usersData"
-								},
-								{
-									$group:
-										{
-											_id: "$_id",
-											users: { $push: "$users" },
-											usersData: { $push: "$usersData" },
-											type: { $push: "$type" },
-											urlBot: { $push: "$urlBot" },
-											active: { $push: "$active" },
-										}
-								}
+								
+								// {
+								// 	$group:
+								// 		{
+								// 			_id: "$_id",
+								// 			users: { $push: "$users" },
+								// 			usersData: { $push: "$usersData" },
+								// 			type: "$type",
+								// 			urlBot: "$urlBot" ,
+								// 			active: "$active" ,
+								// 		}
+								// }
 							]
 						).toArray()
 					),
