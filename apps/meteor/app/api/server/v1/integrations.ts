@@ -263,24 +263,22 @@ API.v1.addRoute(
 	{ authRequired: true },
 	{
 		async post() {
-			const {users, _id} = this.bodyParams;
-			let conf = false;
-			await Promise.all(
-				users.map(async (u: String) => {
+			const {users} = this.bodyParams;
+			
+		
 				
 					const inte_ = Promise.await(
-						Integrations.find({users: u}).toArray()
+						Integrations.find({users}).toArray()
 					)
 					
 					if(inte_.length > 0) {
-						conf = true;
+						return API.v1.failure("User is existed in other config")
 					}
-				})
-			) 
 			
-			if(conf) {
-				return API.v1.failure("User is existed in other config")
-			}
+			
+			
+				
+			
 			return API.v1.success({ integration: await Integrations.insertOne(this.bodyParams) });
 		},
 	},
@@ -294,18 +292,16 @@ API.v1.addRoute(
 			const {_id, users, urlBot, active, requestCnf} = this.bodyParams;
 			let conf = false;
 
-			await Promise.all(
-				users.map(async (u: String) => {
+			
 				
 					const inte_ = Promise.await(
-						Integrations.find({users: u, _id: {$ne: _id}}).toArray()
+						Integrations.find({users, _id: {$ne: _id}}).toArray()
 					)
 					
 					if(inte_.length > 0) {
 						conf = true;
 					}
-				})
-			) 
+		
 			
 			if(conf) {
 				return API.v1.failure("User is existed in other config")
@@ -359,18 +355,10 @@ API.v1.addRoute(
 										as: "usersData"
 									}
 								},
-								
-								// {
-								// 	$group:
-								// 		{
-								// 			_id: "$_id",
-								// 			users: { $push: "$users" },
-								// 			usersData: { $push: "$usersData" },
-								// 			type: "$type",
-								// 			urlBot: "$urlBot" ,
-								// 			active: "$active" ,
-								// 		}
-								// }
+
+								{
+									$unwind: "$usersData"
+								}
 							]
 						).toArray()
 					),

@@ -10,6 +10,7 @@ import {
 	Field,
 	FieldGroup,
 	Icon,
+	SelectFiltered,
 	MultiSelectFiltered,
 	TextInput,
 	ToggleSwitch,
@@ -46,6 +47,7 @@ const AddBotForm = (props) => {
 	const handleSave = async () => {
 		await saveAction();
 		onReload();
+		closeDraw();
 	};
 
 	return (
@@ -62,13 +64,14 @@ const AddBotForm = (props) => {
 					<Field>
 						<Field.Label>Users</Field.Label>
 						<Field.Row>
-							<MultiSelectFiltered
+							{/* <MultiSelectFiltered
 								options={availableUsers}
 								value={users}
 								onChange={handleUsers}
 								placeholder={'Select users'}
 								flexShrink={1}
-							/>
+							/> */}
+							<SelectFiltered flexShrink={1} options={availableUsers} value={users} onChange={handleUsers} />
 						</Field.Row>
 					</Field>
 					
@@ -113,14 +116,14 @@ const AddBotForm = (props) => {
 
 
 const BotTableRow = ({_id, urlBot, users, usersData, active, requestCnf, onClick }) => {
-
+	const {username, name, avatarETag} = usersData;
 	return (
 		<>
 			<Table.Row tabIndex={0} role='link' action onClick={() => onClick({_id, urlBot, users, usersData, active, requestCnf})}>
 
 				<Table.Cell>
-					{
-						usersData.map(({ username, avatarETag, name }) => (
+					
+						
 							<>
 								<Box display='flex' alignItems='center'>
 									<UserAvatar title={username} username={username} etag={avatarETag} />
@@ -139,8 +142,8 @@ const BotTableRow = ({_id, urlBot, users, usersData, active, requestCnf, onClick
 									</Box>
 								</Box>
 							</>
-						))
-					}
+						
+					
 				</Table.Cell>
 				<Table.Cell>{urlBot}</Table.Cell>
 				<Table.Cell>
@@ -180,11 +183,13 @@ export default function NewBot() {
 		const handleUpdate = async () => {
 			await updateAction();
 			onReload();
+			closeDraw();
 		}
 	
 		const handleDelete = async () => {
 			await deleteAction();
 			onReload();
+			closeDraw();
 		}
 	
 		const confirmOwnerChanges =
@@ -246,7 +251,7 @@ export default function NewBot() {
 	
 		
 	
-		return (
+		return useMemo(() =>  (
 			<>
 				<VerticalBar.ScrollableContent>
 					<FieldGroup>
@@ -260,13 +265,14 @@ export default function NewBot() {
 						<Field>
 							<Field.Label>Users</Field.Label>
 							<Field.Row>
-								<MultiSelectFiltered
+								{/* <MultiSelectFiltered
 									options={availableUsers}
 									value={users}
 									onChange={handleUsers}
 									placeholder={'Select users'}
 									flexShrink={1}
-								/>
+								/> */}
+								<SelectFiltered flexShrink={1} options={availableUsers} value={users} onChange={handleUsers} />
 							</Field.Row>
 						</Field>
 
@@ -309,6 +315,7 @@ export default function NewBot() {
 					</FieldGroup>
 				</VerticalBar.ScrollableContent>
 			</>
+		), [bot, values]
 		);
 	}
 	const t = useTranslation();
@@ -380,16 +387,19 @@ export default function NewBot() {
 						results={botList?.integrations}
 					>
 						{
-							 (i) =>
-							<BotTableRow
-							    key={i._id}
-								{...i}
-								onClick={(itg) => {
-									setSelectedInteg(itg);
-									openDraw();
-								}}
-
-							/>
+							useMemo(() => (
+								(i) =>
+								<BotTableRow
+									key={i._id}
+									{...i}
+									onClick={(itg) => {
+										setSelectedInteg(itg);
+										openDraw();
+									}}
+	
+								/>
+							), [botList])
+							 
 							
 						}
 					</GenericTable>
