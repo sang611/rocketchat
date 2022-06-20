@@ -467,7 +467,7 @@ const methodCall = () => ({
 					let usersInRoomExceptMe = currentRoom.usernames.filter(u => u !== currentUser.username);
 					usersInRoomExceptMe.forEach(u => {
 						let userTagged = Users.findOneByIdOrUsername(u);
-						if(userTagged && userTagged.roles.includes('bot'))
+						if(userTagged && userTagged.roles && userTagged.roles.includes('bot'))
 							callToBot(currentUser, userTagged, params[0].rid, params[0].msg)
 					});
 				}
@@ -484,7 +484,6 @@ const methodCall = () => ({
 							    const { roles } = userTagged;
 	
 							if (roles && roles.includes('bot')) {
-								
 								let text = "";
 								msgObj.md.forEach(({type, value}) => {
 									if(type === "PARAGRAPH") {
@@ -516,10 +515,6 @@ const methodCall = () => ({
 					// 	}
 					// }
 				}
-
-				
-
-
 			}
 
 			return API.v1.success(mountResult({ id, result }));

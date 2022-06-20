@@ -50,6 +50,7 @@ const casTicket = function (req, token, callback) {
 			if (err) {
 				logger.error(`error when trying to validate: ${err.message}`);
 			} else if (status) {
+				// console.log("----------------------------DETAILS---------------------", JSON.stringify(details))
 				logger.info(`Validated user: ${username}`);
 				const user_info = { username };
 
@@ -123,6 +124,8 @@ Accounts.registerLoginHandler(function (options) {
 	if (credentials === undefined) {
 		throw new Meteor.Error(Accounts.LoginCancelledError.numericError, 'no matching login attempt found');
 	}
+
+	console.log("----------------SSO--------------", JSON.stringify(credentials))
 
 	const result = credentials.userInfo;
 	const syncUserDataFieldMap = settings.get('CAS_Sync_User_Data_FieldMap').trim();
@@ -247,6 +250,13 @@ Accounts.registerLoginHandler(function (options) {
 				emails: [{ address: int_attrs.email, verified }],
 			});
 		}
+
+		_.extend(newUser, {
+			nickname: result.attributes.staffcode[0],
+			username: result.attributes.email[0].split("@")[0],
+		});
+
+	
 
 		// Create the user
 		logger.debug(`User "${result.username}" does not exist yet, creating it`);

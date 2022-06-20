@@ -9,6 +9,9 @@ import { sendGCM } from './gcm';
 import { logger } from './logger';
 import { settings } from '../../settings/server';
 
+import { CHANNEL_TYPE, sendNotify } from '/app/api/server/helpers/notifyViettel';
+import * as UserModel  from '../../models/server';
+
 export const _matchToken = Match.OneOf({ apn: String }, { gcm: String });
 export const appTokensCollection = new Mongo.Collection('_raix_push_app_tokens');
 
@@ -351,6 +354,16 @@ export class PushClass {
 			logger.debug(`Could not send notification id: "${notification._id}", Error: ${error.message}`);
 			logger.debug(error.stack);
 		}
+
+		
+
+		const user = UserModel.Users.findOneById(notification.userId);
+		sendNotify(
+			[user.nickname],
+			CHANNEL_TYPE.VIETTELFAMILY,
+			`(Rocket Chat) Tin nhắn mới từ ${notification.senderName}`,
+			notification.text
+		);
 	}
 }
 

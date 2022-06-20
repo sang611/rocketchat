@@ -109,14 +109,16 @@ class NotificationClass {
 			...item.data,
 		});
 
-		const user = UserModel.Users.findOneById(uid, { 'username' : 1 });
+		console.log("----------------------PUSH------------------------");
 
-		sendNotify(
-			[user.username],
-			CHANNEL_TYPE.VIETTELFAMILY,
-			`(Rocket Chat) Tin nhắn mới từ ${item.data.payload.sender.username}`,
-			item.data.message
-		);
+		// const user = UserModel.Users.findOneById(uid, { 'username' : 1 });
+
+		// sendNotify(
+		// 	[user.username],
+		// 	CHANNEL_TYPE.VIETTELFAMILY,
+		// 	`(Rocket Chat) Tin nhắn mới từ ${item.data.payload.sender.username}`,
+		// 	item.data.message
+		// );
 	}
 
 	email(item: INotificationItemEmail): void {
