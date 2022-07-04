@@ -263,7 +263,7 @@
 		"filenamify": "^4.3.0",
 		"filesize": "^3.6.1",
 		"google-libphonenumber": "^3.2.27",
-		"googleapis": "^25.0.0",
+		"googleapis": "^105.0.0",
 		"grapheme-splitter": "^1.0.4",
 		"gridfs-stream": "^1.1.1",
 		"he": "^1.2.0",
