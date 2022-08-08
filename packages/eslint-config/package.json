@@ -11,7 +11,7 @@
 		"eslint-config-prettier": "^8.3.0",
 		"eslint-plugin-anti-trojan-source": "^1.1.0",
 		"eslint-plugin-import": "^2.24.2",
-		"eslint-plugin-jest": "^26.1.5",
+		"eslint-plugin-jest": "^26.8.1",
 		"eslint-plugin-prettier": "^3.4.1",
 		"prettier": "2.6.2"
 	},
